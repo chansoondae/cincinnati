@@ -7,14 +7,12 @@ const pad = (n: number) => String(n).padStart(2, "0");
 
 type Props = {
   work: Work;
-  seen: boolean;
-  onToggle: () => void;
   onClose: () => void;
   onPrev?: () => void;
   onNext?: () => void;
 };
 
-export default function WorkSheet({ work: w, seen, onToggle, onClose, onPrev, onNext }: Props) {
+export default function WorkSheet({ work: w, onClose, onPrev, onNext }: Props) {
   const sec = sections.find((s) => s.id === w.section)!;
   const ch = chapters.find((c) => c.no === sec.chapter)!;
   const panelRef = useRef<HTMLDivElement>(null);
@@ -110,9 +108,6 @@ export default function WorkSheet({ work: w, seen, onToggle, onClose, onPrev, on
         <div className="sheet-actions">
           <button className="nav-btn" onClick={onPrev} disabled={!onPrev} aria-label="이전 작품">
             ‹ 이전
-          </button>
-          <button className={`seen-toggle ${seen ? "on" : ""}`} onClick={onToggle} aria-pressed={seen}>
-            {seen ? "✓ 관람 완료" : "관람 완료로 표시"}
           </button>
           <button className="nav-btn" onClick={onNext} disabled={!onNext} aria-label="다음 작품">
             다음 ›

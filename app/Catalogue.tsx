@@ -1,13 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { chapters, exhibition, sections, works as baseWorks, type Work } from "./data";
 import FloorMap from "./FloorMap";
 import WorkSheet from "./WorkSheet";
 
-type Filter = "all" | "highlight" | "unseen";
+type Filter = "all" | "highlight";
 
-const STORAGE_KEY = "cincinnati-seen-v1";
 const pad = (n: number) => String(n).padStart(2, "0");
 const ROUTE = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩"];
 
@@ -19,38 +18,17 @@ export default function Catalogue({ images }: { images: Record<number, string> }
   const works = useMemo(() => baseWorks.map((w) => ({ ...w, image: images[w.no] })), [images]);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
-  const [seen, setSeen] = useState<Set<number>>(new Set());
   const [openNo, setOpenNo] = useState<number | null>(null);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setSeen(new Set(JSON.parse(raw) as number[]));
-    } catch {}
-  }, []);
-
-  const toggleSeen = useCallback((no: number) => {
-    setSeen((prev) => {
-      const next = new Set(prev);
-      if (next.has(no)) next.delete(no);
-      else next.add(no);
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify([...next]));
-      } catch {}
-      return next;
-    });
-  }, []);
 
   const visible = useMemo(() => {
     const q = normalize(query.trim());
     return works.filter((w) => {
       if (filter === "highlight" && !w.highlight) return false;
-      if (filter === "unseen" && seen.has(w.no)) return false;
       if (!q) return true;
       if (/^\d+$/.test(q)) return w.no === Number(q) || pad(w.no) === q;
       return [w.artistKo, w.artist, w.titleKo, w.title, w.titleJa].some((f) => normalize(f).includes(q));
     });
-  }, [query, filter, seen, works]);
+  }, [query, filter, works]);
 
   const visibleSet = useMemo(() => new Set(visible.map((w) => w.no)), [visible]);
   const openIndex = openNo == null ? -1 : visible.findIndex((w) => w.no === openNo);
@@ -117,9 +95,6 @@ export default function Catalogue({ images }: { images: Record<number, string> }
               aria-label="작품 검색"
             />
           </label>
-          <div className="progress" title="관람 체크">
-            <span>{seen.size}</span>/84
-          </div>
         </div>
         <div className="toolbar-row chips">
           {chapters.map((c) => (
@@ -132,7 +107,6 @@ export default function Catalogue({ images }: { images: Record<number, string> }
             [
               ["all", "전체"],
               ["highlight", "★ 주요작"],
-              ["unseen", "안 본 작품"],
             ] as [Filter, string][]
           ).map(([f, label]) => (
             <button
@@ -145,15 +119,12 @@ export default function Catalogue({ images }: { images: Record<number, string> }
             </button>
           ))}
         </div>
-        <div className="progress-bar" aria-hidden>
-          <i style={{ width: `${(seen.size / 84) * 100}%` }} />
-        </div>
       </nav>
 
       <main id="list">
         <p className="list-note">
-          작품 번호는 전시 순서와 일치하지 않지만, 도록 및 전시장 내 번호와 일치합니다. 작품을 누르면 상세 정보와 실제 크기 비교를 볼 수
-          있어요. 오른쪽 원을 누르면 ‘관람 완료’로 표시됩니다.
+          작품 번호는 전시 순서와 일치하지 않지만, 도록 및 전시장 내 번호와 일치합니다. 작품을 누르면 도슨트 해설과 상세 정보, 실제 크기
+          비교를 볼 수 있어요.
         </p>
 
         {visible.length === 0 && <p className="empty">조건에 맞는 작품이 없습니다.</p>}
@@ -191,13 +162,7 @@ export default function Catalogue({ images }: { images: Record<number, string> }
                     </div>
                     <ol className="rows">
                       {list.map((w) => (
-                        <WorkRow
-                          key={w.no}
-                          w={w}
-                          seen={seen.has(w.no)}
-                          onOpen={() => setOpenNo(w.no)}
-                          onToggle={() => toggleSeen(w.no)}
-                        />
+                        <WorkRow key={w.no} w={w} onOpen={() => setOpenNo(w.no)} />
                       ))}
                     </ol>
                   </div>
@@ -294,8 +259,6 @@ export default function Catalogue({ images }: { images: Record<number, string> }
       {openWork && (
         <WorkSheet
           work={openWork}
-          seen={seen.has(openWork.no)}
-          onToggle={() => toggleSeen(openWork.no)}
           onClose={() => setOpenNo(null)}
           onPrev={openIndex > 0 ? () => setOpenNo(visible[openIndex - 1].no) : undefined}
           onNext={openIndex >= 0 && openIndex < visible.length - 1 ? () => setOpenNo(visible[openIndex + 1].no) : undefined}
@@ -305,9 +268,9 @@ export default function Catalogue({ images }: { images: Record<number, string> }
   );
 }
 
-function WorkRow({ w, seen, onOpen, onToggle }: { w: Work; seen: boolean; onOpen: () => void; onToggle: () => void }) {
+function WorkRow({ w, onOpen }: { w: Work; onOpen: () => void }) {
   return (
-    <li className={`row ${seen ? "is-seen" : ""} ${w.highlight ? "is-hl" : ""}`}>
+    <li className={`row ${w.highlight ? "is-hl" : ""}`}>
       <button className="row-main" onClick={onOpen}>
         <span className="row-no">{pad(w.no)}</span>
         <span className={`row-thumb ${w.image ? "" : "none"}`} aria-hidden>
@@ -325,16 +288,6 @@ function WorkRow({ w, seen, onOpen, onToggle }: { w: Work; seen: boolean; onOpen
             {w.year} · {w.mediumKo} · {w.size}
           </span>
         </span>
-      </button>
-      <button
-        className={`seen-btn ${seen ? "on" : ""}`}
-        onClick={onToggle}
-        aria-pressed={seen}
-        aria-label={seen ? `${w.no}번 관람 완료 해제` : `${w.no}번 관람 완료로 표시`}
-      >
-        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden>
-          <path d="M5 12.5l4.2 4L19 7" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
       </button>
     </li>
   );
