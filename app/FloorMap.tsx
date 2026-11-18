@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { sections } from "./data";
 
 const ROUTE = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩"];
@@ -23,57 +23,86 @@ const POS: Record<string, { x: number; y: number }> = {
 
 const chapterKo: Record<number, string> = { 1: "서장", 2: "전통", 3: "혁명", 4: "모더니즘" };
 
-export default function FloorMap({ onJump }: { onJump: (sectionId: string) => void }) {
-  const [floor, setFloor] = useState<"2F" | "1F">("2F");
+type Props = {
+  current: string | null; // 지금 목록에서 보고 있는 섹션
+  onJump: (sectionId: string) => void;
+  onClose: () => void;
+};
+
+/** 아래에서 올라오는 층별 안내도 시트 */
+export default function FloorMapSheet({ current, onJump, onClose }: Props) {
+  const initial = sections.find((s) => s.id === current)?.floor ?? "2F";
+  const [floor, setFloor] = useState<"2F" | "1F">(initial);
   const list = sections.filter((s) => s.floor === floor);
 
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+
   return (
-    <section id="map" className="map">
-      <h2 className="block-title">
-        층별 안내도 <em>Floor Map</em>
-      </h2>
-      <p className="map-lead">
-        관람은 <b>2층 서장</b>에서 시작해 계단으로 내려가 <b>1층 모더니즘</b>에서 끝납니다. 방 이름을 누르면 해당 작품 목록으로 이동해요.
-      </p>
-      <div className="floor-tabs" role="tablist">
-        {(["2F", "1F"] as const).map((f) => (
-          <button key={f} role="tab" aria-selected={floor === f} className={floor === f ? "on" : ""} onClick={() => setFloor(f)}>
-            {f} <small>{f === "2F" ? "① – ⑥" : "⑦ – ⑩"}</small>
+    <div className="sheet-wrap" role="dialog" aria-modal="true" aria-label="층별 안내도">
+      <div className="sheet-backdrop" onClick={onClose} />
+      <div className="sheet map-sheet">
+        <div className="sheet-grip" aria-hidden />
+        <div className="sheet-head">
+          <h2 className="map-title">
+            층별 안내도 <em>Floor Map</em>
+          </h2>
+          <button className="sheet-close" onClick={onClose} aria-label="닫기">
+            ✕
           </button>
-        ))}
-      </div>
-
-      <div className={`plan plan-${floor}`}>
-        <div className="plan-inner">
-        <img src={floor === "2F" ? "/img/2nd_floor.jpg" : "/img/1st_floor.jpg"} alt={`${floor} 전시실 평면도`} />
-        {list.map((s) => (
-          <button
-            key={s.id}
-            className={`plan-label ch${s.chapter}`}
-            data-id={s.id}
-            style={{ left: `${POS[s.id].x}%`, top: `${POS[s.id].y}%` }}
-            onClick={() => onJump(s.id)}
-            aria-label={`${ROUTE[s.route - 1]} ${chapterKo[s.chapter]} ${s.ko} 작품 목록으로 이동`}
-          >
-            <span className="pl-route">{s.route}</span>
-          </button>
-        ))}
         </div>
-      </div>
+        <p className="map-lead">
+          <b>2층 서장</b>에서 시작해 계단으로 내려가 <b>1층 모더니즘</b>에서 끝나요. 방 번호를 누르면 해당 작품 목록으로 이동합니다.
+        </p>
 
-      <ol className="route-list">
-        {sections.map((s) => (
-          <li key={s.id} className={`ch${s.chapter}`}>
-            <button onClick={() => onJump(s.id)}>
-              <span className="rl-no">{ROUTE[s.route - 1]}</span>
-              <span className="rl-name">
-                {chapterKo[s.chapter]} · {s.ko}
-              </span>
-              <span className={`floor f${s.floor}`}>{s.floor}</span>
+        <div className="floor-tabs" role="tablist">
+          {(["2F", "1F"] as const).map((f) => (
+            <button key={f} role="tab" aria-selected={floor === f} className={floor === f ? "on" : ""} onClick={() => setFloor(f)}>
+              {f} <small>{f === "2F" ? "① – ⑥" : "⑦ – ⑩"}</small>
             </button>
-          </li>
-        ))}
-      </ol>
-    </section>
+          ))}
+        </div>
+
+        <div className={`plan plan-${floor}`}>
+          <div className="plan-inner">
+            <img src={floor === "2F" ? "/img/2nd_floor.jpg" : "/img/1st_floor.jpg"} alt={`${floor} 전시실 평면도`} />
+            {list.map((s) => (
+              <button
+                key={s.id}
+                className={`plan-label ch${s.chapter} ${s.id === current ? "current" : ""}`}
+                data-id={s.id}
+                style={{ left: `${POS[s.id].x}%`, top: `${POS[s.id].y}%` }}
+                onClick={() => onJump(s.id)}
+                aria-label={`${ROUTE[s.route - 1]} ${chapterKo[s.chapter]} ${s.ko} 작품 목록으로 이동`}
+              >
+                <span className="pl-route">{s.route}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <ol className="route-list">
+          {list.map((s) => (
+            <li key={s.id} className={`ch${s.chapter} ${s.id === current ? "current" : ""}`}>
+              <button onClick={() => onJump(s.id)}>
+                <span className="rl-no">{ROUTE[s.route - 1]}</span>
+                <span className="rl-name">
+                  {chapterKo[s.chapter]} · {s.ko}
+                </span>
+                {s.id === current ? <span className="rl-here">보는 중</span> : <span className={`floor f${s.floor}`}>{s.floor}</span>}
+              </button>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </div>
   );
 }

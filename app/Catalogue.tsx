@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { chapters, exhibition, sections, works as baseWorks, type Work } from "./data";
-import FloorMap from "./FloorMap";
+import FloorMapSheet from "./FloorMap";
 import WorkSheet from "./WorkSheet";
 
 type Filter = "all" | "highlight";
@@ -19,6 +19,21 @@ export default function Catalogue({ images }: { images: Record<number, string> }
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [openNo, setOpenNo] = useState<number | null>(null);
+  const [mapOpen, setMapOpen] = useState(false);
+  const [currentSec, setCurrentSec] = useState<string | null>(null);
+
+  // 안내도를 여는 순간, 목록에서 지금 보고 있는 섹션을 계산해 강조
+  const openMap = () => {
+    let cur: string | null = null;
+    for (const el of document.querySelectorAll<HTMLElement>(".sub[id^='sec-']")) {
+      if (el.getBoundingClientRect().top <= 180) cur = el.id.slice(4);
+      else break;
+    }
+    const list = document.getElementById("list");
+    if (list && list.getBoundingClientRect().bottom < 180) cur = null; // 목록 아래(관람 안내)까지 내려온 경우
+    setCurrentSec(cur);
+    setMapOpen(true);
+  };
 
   const visible = useMemo(() => {
     const q = normalize(query.trim());
@@ -34,7 +49,8 @@ export default function Catalogue({ images }: { images: Record<number, string> }
   const openIndex = openNo == null ? -1 : visible.findIndex((w) => w.no === openNo);
   const openWork = openNo == null ? null : works.find((w) => w.no === openNo) ?? null;
 
-  const go = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const go = (id: string, smooth = true) =>
+    document.getElementById(id)?.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
 
   return (
     <>
@@ -72,7 +88,7 @@ export default function Catalogue({ images }: { images: Record<number, string> }
             <p className="hero-tag">고흐 최만년의 걸작, 일본에 오다 · 84점 중 81점 일본 첫 공개</p>
             <div className="hero-cta">
               <button className="btn-lime" onClick={() => go("list")}>작품 목록 보기</button>
-              <button className="btn-ghost" onClick={() => go("map")}>층별 안내도</button>
+              <button className="btn-ghost" onClick={openMap}>층별 안내도</button>
             </div>
           </div>
         </div>
@@ -173,8 +189,6 @@ export default function Catalogue({ images }: { images: Record<number, string> }
         })}
       </main>
 
-      <FloorMap onJump={(id) => go(`sec-${id}`)} />
-
       {/* ───────── INFO ───────── */}
       <section id="info" className="info">
         <h2 className="block-title">
@@ -255,6 +269,31 @@ export default function Catalogue({ images }: { images: Record<number, string> }
         </p>
         <p className="footer-logo">cincinnati ✻ art museum</p>
       </footer>
+
+      {!openWork && !mapOpen && (
+        <button className="map-fab" onClick={openMap} aria-label="층별 안내도 열기">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
+            <path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5L9 4Z M9 4v13.5 M15 6.5V20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+          </svg>
+          <span>안내도</span>
+        </button>
+      )}
+
+      {mapOpen && (
+        <FloorMapSheet
+          current={currentSec}
+          onClose={() => setMapOpen(false)}
+          onJump={(id) => {
+            setMapOpen(false);
+            if (!document.getElementById(`sec-${id}`)) {
+              setQuery("");
+              setFilter("all");
+            }
+            // 시트가 닫히고 스크롤 잠금이 풀린 뒤 이동 (멀리 이동하므로 즉시 스크롤)
+            setTimeout(() => go(`sec-${id}`, false), 50);
+          }}
+        />
+      )}
 
       {openWork && (
         <WorkSheet
