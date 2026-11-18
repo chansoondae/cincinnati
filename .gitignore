@@ -1,0 +1,6 @@
+node_modules
+.next
+.next-dev-bak
+out
+.DS_Store
+*.tsbuildinfo
